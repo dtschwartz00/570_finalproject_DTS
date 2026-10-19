@@ -1,0 +1,69 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal.windows import hann
+from scipy.fft import fft, fftfreq
+from arlpy import uwapm
+import numpy as np
+
+#create mock signal
+fs = 1000 #sampling frequency 
+t = np.linspace(0, 1, fs, endpoint=False)
+signal = np.sin(2 * np.pi * 50 * t) + 0.5 * np.random.randn(len(t))
+
+#create hann window
+window = hann(len(signal), sym=False)
+
+windowed_signal = signal * window
+
+fft_output = fft(windowed_signal)
+frequencies = fftfreq(len(t), 1/fs)
+
+
+def simulate_hydrophone_voltage(frequency, pressure_pa, duration, fs, sensitivity_db):
+    """
+    Simulates raw voltage output of a hydrophone given a sound wave pressure.
+    """
+    t = np.arange(0, duration, 1/fs)
+    
+    # 1. Generate the acoustic pressure wave (Pascal)
+    pressure_wave = pressure_pa * np.sin(2 * np.pi * frequency * t)
+    
+    # 2. Add some ambient ocean noise (Wenz noise approximation helper)
+    noise_pa = np.random.normal(0, pressure_pa * 0.05, len(t))
+    total_pressure = pressure_wave + noise_pa
+    
+    # 3. Apply Hydrophone Sensitivity 
+    # Example: -200 dB re 1 V/uPa means it takes a lot of microPascals to make 1 Volt
+    sensitivity_linear = 10**(sensitivity_db / 20.0) # V per uPa
+    
+    # Convert Pascal to microPascal (1 Pa = 1,000,000 uPa)
+    pressure_upa = total_pressure * 1e6
+    
+    # Calculate Voltage output
+    voltage = pressure_upa * sensitivity_linear
+    
+    return t, total_pressure, voltage
+
+# Simulation Parameters
+fs = 44100              # Sampling frequency (Hz)
+duration = 0.05         # 50 ms snippet
+frequency = 1000        # 1 kHz underwater tone
+pressure_pa = 10.0      # 10 Pascals peak pressure
+sensitivity_db = -170.0 # Standard hydrophone sensitivity (dB re 1V/uPa)
+
+t, pressure, voltage = simulate_hydrophone_voltage(frequency, pressure_pa, duration, fs, sensitivity_db)
+
+# Plotting the Results
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+ax1.plot(t * 1000, pressure, color='teal')
+ax1.set_ylabel('Acoustic Pressure (Pa)')
+ax1.set_title('Hydrophone Physical Simulation')
+ax1.grid(True)
+
+ax2.plot(t * 1000, voltage * 1000, color='darkorange') # convert to mV for display
+ax2.set_ylabel('Output Voltage (mV)')
+ax2.set_xlabel('Time (ms)')
+ax2.grid(True)
+
+plt.tight_layout()
+plt.show()
